@@ -2,14 +2,6 @@
 
 Repositorio para almacenar las prácticas realizadas durante el curso Proceso Digital de Imágenes 2025-1.
 
-# Nombre: Paola Mildred Martínez Hidalgo
-
-# Página de curso: https://la-morsa.blogspot.com/ 
-
-# 📚 Proceso Digital de Imágenes 2025-1
-
-Repositorio para almacenar las prácticas realizadas durante el curso Proceso Digital de Imágenes 2025-1.
-
 <table>
     <tr>
         <th>  Títular </th>
