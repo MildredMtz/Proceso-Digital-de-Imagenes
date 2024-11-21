@@ -1,47 +1,93 @@
-from tkinter import *
-from tkinter import filedialog
-from PIL import Image, ImageTk, ImageOps
-import cv2
-import imutils
+import pathlib
+import json
+import os
+import math
+import random
+
 import numpy as np
+import cv2
 
-# Configurar la ventana principal
-root = Tk()
-root.title("Proyecto Final FotoMorsaicos")
+# Funcion para calcular el color promedio de una imagen 
+def get_average_color(img):
+    average_color = np.average(np.average(img, axis=0), axis=0)
+    average_color = np.around(average_color, decimals=1)
+    average_color = tuple(int(i) for i in average_color)
+    return average_color
 
-# Variables globales
-image = None
-image_pillow = None
+# Funcion para encontrar el color mas cercano en caso de que no este el color buscado
+# color = es el color que estamos buscando
+# colors = son los colores que tenemos en el archivo json
+def get_closest_color(color, colors):
+    cr, cg, cb = color
 
-# Función para elegir una imagen
-def elegir_imagen():
-    # Especificar los tipos de archivos, para elegir solo imágenes
-    path_image = filedialog.askopenfilename(filetypes=[("image", ".jpeg"), ("image", ".png"), ("image", ".jpg")])
+    min_difference = float("inf")
+    closest_color = None
+    for c in colors:
+        r, g, b = eval(c)
+        difference = math.sqrt((r - cr) ** 2 + (g - cg) ** 2 + (b -cb) ** 2)
+        if difference < min_difference:
+            min_difference = difference
+            closest_color = eval(c)
 
-    if len(path_image) > 0:
-        global image, image_pillow
+    return closest_color
 
-        # Leer la imagen de entrada y redimensionarla
-        image = cv2.imread(path_image)
-        image = imutils.resize(image, height=380)
-        
-        # Convertir la imagen de OpenCV a Pillow para mostrar
-        imageToShow = imutils.resize(image, width=380)
-        imageToShow = cv2.cvtColor(imageToShow, cv2.COLOR_BGR2RGB)
-        image_pillow = Image.fromarray(imageToShow)
-        img = ImageTk.PhotoImage(image=image_pillow)
+# En caso de ya tener el archivo json ya no lo volvera a hacer
+if "cache.json" not in os.listdir():
+    pass
 
-        lblInputImage.configure(image=img)
-        lblInputImage.image = img
+# Creamos una ruta para la carpeta de imagenes 
+imgs_dir = pathlib.Path("Imagenes")
+# Creamos una ruta por si las imagenes se encuentran dentro de carpetas 
+images = list(imgs_dir.glob("**/*.jpg"))
 
+# Para obtener la ruta de las imagenes 
+data = {}
+for img_path in images:
+    img = cv2.imread(str(img_path))
+    average_color = get_average_color(img)
 
-# Botón para cargar la imagen
-btnChooseImage = Button(root, text="Cargar Imagen", command=elegir_imagen)
-btnChooseImage.grid(column=0, row=1, padx=5, pady=5)
+# Funcion para obtener las imagenes que cumplen con un color promedio establecido
+    if str(tuple(average_color)) in data:
+        data[str(tuple(average_color))].append(str(img_path))
+    else:
+        data[str(tuple(average_color))] = [str(img_path)]
+# Capturamos toda la información anterior en un json
+with open("cache.json", "w") as file:
+    json.dump(data, file, indent=2, sort_keys=True)
+print("Caching done")
 
-# Etiqueta para mostrar la imagen de entrada
-lblInputImage = Label(root)
-lblInputImage.grid(column=0, row=2)
+with open("cache.json", "r") as file:
+    data = json.load(file)
 
-# Iniciar el bucle principal de la GUI
-root.mainloop()
+# Tomamos nuestra imagen principal y obtenenmos propiedades (altura, ancho)
+img = cv2.imread("image.jpg")
+img_height, img_width, _ = img.shape
+tile_height, tile_width = 20, 20 # Definimos el tamaño de cada pixel
+
+# Hacemos lo siguiente para dividir la imagen principal
+num_tiles_h, num_tiles_w = img_height // tile_height, img_width // tile_width
+img = img[:tile_height * num_tiles_h, :tile_width * num_tiles_w]
+
+tiles = []
+for y in range(0, img_height, tile_height):
+    for x in range(0, img_width, tile_width):
+        tiles.append((y, y + tile_height, x, x + tile_width))
+
+for tile in tiles:
+    y0, y1, x0, x1 = tile
+    try:
+        average_color = get_average_color(img[y0:y1, x0:x1])
+    except Exception:
+        continue
+    closest_color = get_closest_color(average_color, data.keys())
+
+    # Redimensionamos las medidas de las imagenenes que se colocaran 
+    i_path = random.choice(data[str(closest_color)])
+    i = cv2.imread(i_path)
+    i = cv2.resize(i, (tile_width, tile_height))
+    img[y0:y1, x0:x1] = i
+
+    cv2.imshow("Image", img)
+    cv2.waitKey(1)
+
+cv2.imwrite("NuevaImagen.jpg", img)
